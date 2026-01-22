@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SchoolAI - Physics Studio</title>
+    <title>SchoolAI - Physics Studio + Diagrams</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></script>
 </head>
@@ -11,35 +11,36 @@
 
     <nav class="bg-indigo-700 text-white p-4 flex justify-between items-center shadow-lg">
         <div class="flex items-center gap-2 text-xl font-bold"><i class="fas fa-atom"></i> School.ai Physics</div>
-        <div class="bg-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Teacher Mode Active</div>
+        <div class="bg-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Visual Mode Active</div>
     </nav>
 
-    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full bg-white shadow-2xl my-4 rounded-3xl overflow-hidden border border-slate-200">
+    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full bg-white shadow-2xl my-2 rounded-3xl overflow-hidden border border-slate-200">
         <div id="header" class="p-5 border-b flex items-center gap-4 bg-white">
-            <div id="avatar" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-inner">
+            <div id="avatar" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-inner transition-all duration-500">
                 <i class="fas fa-robot"></i>
             </div>
             <div>
-                <h2 id="name" class="font-black text-slate-800 text-lg">Physics Guide</h2>
-                <p id="status" class="text-xs text-indigo-500 font-bold uppercase tracking-widest">Online</p>
+                <h2 id="name" class="font-black text-slate-800 text-lg">AI Physics Guide</h2>
+                <p id="status" class="text-xs text-indigo-500 font-bold uppercase tracking-widest">Socratic Mode</p>
             </div>
         </div>
 
         <div id="chat" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
-            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 max-w-[85%]">
-                Hi! I'm your learning partner. I'm ready to help with <b>Electrostatics</b>. Ask me anything or click the mic!
+            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 max-w-[85%] text-slate-700">
+                Welcome back! Ready to see how <b>Electrostatics</b> works? Ask me a question, and I'll help you visualize the physics!
             </div>
         </div>
 
-        <div id="error-display" class="hidden mx-6 my-2 p-3 bg-red-100 text-red-700 text-xs rounded-lg border border-red-200"></div>
-
-        <div id="typing" class="px-8 py-2 text-xs text-slate-400 italic hidden">AI is thinking...</div>
+        <div id="typing" class="px-8 py-2 text-xs text-slate-400 italic hidden flex items-center gap-2">
+            <span class="flex gap-1"><span class="animate-bounce">.</span><span class="animate-bounce delay-75">.</span><span class="animate-bounce delay-150">.</span></span>
+            <span>AI is drawing & thinking...</span>
+        </div>
 
         <div class="p-6 bg-white border-t flex gap-4 items-center">
             <button onclick="startVoice()" id="mic" class="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:border-indigo-500 transition-all">
                 <i class="fas fa-microphone text-xl"></i>
             </button>
-            <input type="text" id="input" class="flex-1 p-4 bg-slate-50 border-none rounded-2xl outline-none" placeholder="Type your question here...">
+            <input type="text" id="input" onkeypress="if(event.key === 'Enter') askAI()" class="flex-1 p-4 bg-slate-50 border-none rounded-2xl outline-none" placeholder="Explain the structure of an atom...">
             <button onclick="askAI()" class="bg-indigo-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-indigo-800 shadow-lg transition-all active:scale-95">
                 <i class="fas fa-paper-plane text-xl"></i>
             </button>
@@ -49,15 +50,22 @@
     <script>
         const API_KEY = "AIzaSyBSnd-fQQVpSQnEzk3D2Rko3iCB2wjA-X4"; 
         const chat = document.getElementById('chat');
-        const errorDisplay = document.getElementById('error-display');
         let isPhantomMode = false;
+
+        // Image Mapping for Physics Visuals
+        const diagramMap = {
+            "atom": "https://upload.wikimedia.org/wikipedia/commons/e/e1/Stylised_Lithium_Atom.svg",
+            "friction": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Friction_forces_and_motion.svg",
+            "charge": "https://upload.wikimedia.org/wikipedia/commons/4/4b/CoulombsLaw.svg",
+            "balloon": "https://images.unsplash.com/photo-1574169208507-84376144848b?q=80&w=300&auto=format&fit=crop",
+            "field": "https://upload.wikimedia.org/wikipedia/commons/2/23/Electric_field_dipole.svg"
+        };
 
         async function askAI() {
             const inputField = document.getElementById('input');
             const userText = inputField.value.trim();
             if(!userText) return;
 
-            errorDisplay.classList.add('hidden');
             appendMsg('student', userText);
             inputField.value = '';
             document.getElementById('typing').classList.remove('hidden');
@@ -66,54 +74,50 @@
                 switchToTeacher();
             }
 
-            const sysPrompt = isPhantomMode 
-                ? "You are Mr. Harrison, a human physics teacher. Be friendly and warm. Guide the student through Electrostatics."
-                : "You are a Socratic Physics tutor. Never give direct answers. Ask questions to help the student learn Electrostatics.";
+            const sysPrompt = `You are a Socratic tutor. Use short, simple sentences. If the user mentions atom, friction, or charge, tell them you are showing a diagram. User says: ${userText}`;
 
             try {
-                // Using stable v1 API
                 const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-                
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `${sysPrompt} Student: ${userText}` }] }]
-                    })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: sysPrompt }] }] })
                 });
 
                 const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error.message);
-                }
-
-                if (!data.candidates || !data.candidates[0].content) {
-                    throw new Error("The AI returned an empty response. Try a different question.");
-                }
-
                 const aiResponse = data.candidates[0].content.parts[0].text;
-                appendMsg('ai', aiResponse);
                 
-                const speech = new SpeechSynthesisUtterance(aiResponse);
-                window.speechSynthesis.speak(speech);
+                // Logic to show diagram based on keywords
+                let diagramUrl = "";
+                for(let key in diagramMap) {
+                    if(userText.toLowerCase().includes(key) || aiResponse.toLowerCase().includes(key)) {
+                        diagramUrl = diagramMap[key];
+                        break;
+                    }
+                }
+
+                appendMsg('ai', aiResponse, diagramUrl);
+                speak(aiResponse);
 
             } catch (err) {
-                console.error("Full Error:", err);
-                errorDisplay.innerText = "Connection Error: " + err.message;
-                errorDisplay.classList.remove('hidden');
-                appendMsg('ai', "I'm having a connection glitch. Check the red box above for details!");
+                appendMsg('ai', "I'm having a connection glitch. Try refreshing!");
             } finally {
                 document.getElementById('typing').classList.add('hidden');
             }
         }
 
-        function appendMsg(role, text) {
+        function appendMsg(role, text, imgUrl = "") {
             const div = document.createElement('div');
             div.className = role === 'ai' 
-                ? "bg-white p-4 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm max-w-[85%]" 
+                ? "bg-white p-4 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm max-w-[85%] text-slate-700 space-y-3" 
                 : "bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none self-end ml-auto max-w-[85%] shadow-md";
-            div.innerHTML = text.replace(/\n/g, '<br>');
+            
+            let content = `<p>${text.replace(/\n/g, '<br>')}</p>`;
+            if(imgUrl) {
+                content += `<img src="${imgUrl}" class="rounded-lg border border-slate-100 shadow-sm max-h-48 mx-auto" alt="Physics Diagram">`;
+            }
+            
+            div.innerHTML = content;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
@@ -126,21 +130,20 @@
             document.getElementById('avatar').innerHTML = '<i class="fas fa-user-tie"></i>';
         }
 
-        // Voice
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognition) {
-            const recognition = new SpeechRecognition();
-            function startVoice() {
-                recognition.start();
-                document.getElementById('mic').classList.add('text-indigo-600', 'border-indigo-500', 'bg-indigo-50');
-            }
+        function speak(text) {
+            const speech = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(speech);
+        }
+
+        function startVoice() {
+            const recognition = new (window.SpeechRecognition || window.webkitRecognition)();
+            recognition.start();
+            document.getElementById('mic').classList.add('text-indigo-600', 'border-indigo-500');
             recognition.onresult = (e) => {
                 document.getElementById('input').value = e.results[0][0].transcript;
-                document.getElementById('mic').classList.remove('text-indigo-600', 'border-indigo-500', 'bg-indigo-50');
+                document.getElementById('mic').classList.remove('text-indigo-600', 'border-indigo-500');
                 askAI();
             };
-        } else {
-            document.getElementById('mic').style.display = 'none';
         }
     </script>
 </body>

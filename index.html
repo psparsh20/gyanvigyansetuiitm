@@ -1,129 +1,84 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SchoolAI - Physics Studio</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></script>
-</head>
-<body class="bg-slate-50 h-screen flex flex-col font-sans">
+<script>
+    // Your Key
+    const API_KEY = "AIzaSyBSnd-fQQVpSQnEzk3D2Rko3iCB2wjA-X4"; 
+    const chat = document.getElementById('chat');
+    let isPhantomMode = false;
 
-    <nav class="bg-indigo-700 text-white p-4 flex justify-between items-center shadow-lg">
-        <div class="flex items-center gap-2 text-xl font-bold"><i class="fas fa-atom"></i> School.ai Physics</div>
-        <div class="bg-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Socratic Teacher Live</div>
-    </nav>
+    async function askAI() {
+        const inputField = document.getElementById('input');
+        const userText = inputField.value.trim();
+        if(!userText) return;
 
-    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full bg-white shadow-2xl my-4 rounded-3xl overflow-hidden border border-slate-200">
-        <div id="header" class="p-5 border-b flex items-center gap-4 bg-white">
-            <div id="avatar" class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-inner">
-                <i class="fas fa-robot"></i>
-            </div>
-            <div>
-                <h2 id="name" class="font-black text-slate-800 text-lg">Physics Guide</h2>
-                <p id="status" class="text-xs text-indigo-500 font-bold uppercase tracking-widest">Online</p>
-            </div>
-        </div>
+        appendMsg('student', userText);
+        inputField.value = '';
+        document.getElementById('typing').classList.remove('hidden');
 
-        <div id="chat" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
-            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-200 max-w-[85%]">
-                Hi! I'm your learning partner. I heard you want to explore <b>Electrostatics</b>. Where should we start? Maybe with why a balloon sticks to a wall?
-            </div>
-        </div>
+        if(userText.toLowerCase().includes("stuck") || userText.toLowerCase().includes("don't know")) {
+            switchToTeacher();
+        }
 
-        <div id="typing" class="px-8 py-2 text-xs text-slate-400 italic hidden">AI is thinking...</div>
+        const sysPrompt = isPhantomMode 
+            ? "You are Mr. Harrison, a human physics teacher. Be friendly and warm. Guide the student through Electrostatics."
+            : "You are a Socratic Physics tutor. Never give direct answers. Ask questions to help the student learn Electrostatics.";
 
-        <div class="p-6 bg-white border-t flex gap-4 items-center">
-            <button onclick="startVoice()" id="mic" class="w-14 h-14 rounded-2xl border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:border-indigo-500 transition-all">
-                <i class="fas fa-microphone text-xl"></i>
-            </button>
-            <input type="text" id="input" class="flex-1 p-4 bg-slate-50 border-none rounded-2xl outline-none" placeholder="Ask a question about physics...">
-            <button onclick="askAI()" class="bg-indigo-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center hover:bg-indigo-800 shadow-lg">
-                <i class="fas fa-paper-plane text-xl"></i>
-            </button>
-        </div>
-    </main>
+        try {
+            // UPDATED URL: Changed to v1 and refined model string
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                method: "POST",
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: `${sysPrompt} Student: ${userText}` }] }]
+                })
+            });
 
-    <script>
-        // Your Key - Ensure "Generative Language API" is enabled in Google Cloud Console
-        const API_KEY = "AIzaSyBSnd-fQQVpSQnEzk3D2Rko3iCB2wjA-X4"; 
-        const chat = document.getElementById('chat');
-        let isPhantomMode = false;
+            const data = await response.json();
+            
+            // Debugging log so you can see details in F12 console
+            console.log("Gemini Response:", data);
 
-        async function askAI() {
-            const inputField = document.getElementById('input');
-            const userText = inputField.value.trim();
-            if(!userText) return;
-
-            appendMsg('student', userText);
-            inputField.value = '';
-            document.getElementById('typing').classList.remove('hidden');
-
-            // Trigger "Phantom Teacher" if student is stuck
-            if(userText.toLowerCase().includes("stuck") || userText.toLowerCase().includes("don't know")) {
-                switchToTeacher();
+            if (data.error) {
+                throw new Error(data.error.message);
             }
 
-            const sysPrompt = isPhantomMode 
-                ? "You are Mr. Harrison, a human physics teacher. Be friendly and warm. Guide the student through Electrostatics."
-                : "You are a Socratic Physics tutor. Never give direct answers. Ask questions to help the student learn Electrostatics.";
+            const aiResponse = data.candidates[0].content.parts[0].text;
+            appendMsg('ai', aiResponse);
+            
+            const speech = new SpeechSynthesisUtterance(aiResponse);
+            window.speechSynthesis.speak(speech);
 
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-                    method: "POST",
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `${sysPrompt} Student: ${userText}` }] }]
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.error) throw new Error(data.error.message);
-
-                const aiResponse = data.candidates[0].content.parts[0].text;
-                appendMsg('ai', aiResponse);
-                
-                // Voice Output
-                const speech = new SpeechSynthesisUtterance(aiResponse);
-                window.speechSynthesis.speak(speech);
-
-            } catch (err) {
-                console.error("API Error:", err);
-                appendMsg('ai', "I'm having trouble connecting to my brain! Error: " + err.message);
-            } finally {
-                document.getElementById('typing').classList.add('hidden');
-            }
+        } catch (err) {
+            console.error("Detailed API Error:", err);
+            appendMsg('ai', "I'm having trouble connecting! Error: " + err.message);
+        } finally {
+            document.getElementById('typing').classList.add('hidden');
         }
+    }
 
-        function appendMsg(role, text) {
-            const div = document.createElement('div');
-            div.className = role === 'ai' 
-                ? "bg-white p-4 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm max-w-[85%]" 
-                : "bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none self-end ml-auto max-w-[85%] shadow-md";
-            div.innerHTML = text.replace(/\n/g, '<br>');
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
-        }
+    function appendMsg(role, text) {
+        const div = document.createElement('div');
+        div.className = role === 'ai' 
+            ? "bg-white p-4 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm max-w-[85%]" 
+            : "bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none self-end ml-auto max-w-[85%] shadow-md";
+        div.innerHTML = text.replace(/\n/g, '<br>');
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
 
-        function switchToTeacher() {
-            isPhantomMode = true;
-            document.getElementById('name').innerText = "Mr. Harrison (Teacher)";
-            document.getElementById('avatar').classList.replace('bg-indigo-600', 'bg-orange-500');
-            document.getElementById('avatar').innerHTML = '<i class="fas fa-user-tie"></i>';
-        }
+    function switchToTeacher() {
+        isPhantomMode = true;
+        document.getElementById('name').innerText = "Mr. Harrison (Teacher)";
+        document.getElementById('avatar').classList.replace('bg-indigo-600', 'bg-orange-500');
+        document.getElementById('avatar').innerHTML = '<i class="fas fa-user-tie"></i>';
+    }
 
-        // Voice Recognition
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        function startVoice() {
-            recognition.start();
-            document.getElementById('mic').classList.add('text-indigo-600', 'border-indigo-500');
-        }
-        recognition.onresult = (e) => {
-            document.getElementById('input').value = e.results[0][0].transcript;
-            document.getElementById('mic').classList.remove('text-indigo-600', 'border-indigo-500');
-            askAI();
-        };
-    </script>
-</body>
-</html>
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    function startVoice() {
+        recognition.start();
+        document.getElementById('mic').classList.add('text-indigo-600', 'border-indigo-500');
+    }
+    recognition.onresult = (e) => {
+        document.getElementById('input').value = e.results[0][0].transcript;
+        document.getElementById('mic').classList.remove('text-indigo-600', 'border-indigo-500');
+        askAI();
+    };
+</script>

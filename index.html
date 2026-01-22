@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SchoolAI - Agentic Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></script>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
+
+    <nav class="bg-indigo-700 text-white p-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center gap-2 text-xl font-bold"><i class="fas fa-graduation-cap"></i> School.ai</div>
+        <div class="text-xs opacity-75">Phantom Teacher Mode Active</div>
+    </nav>
+
+    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full bg-white shadow-2xl my-4 rounded-t-3xl overflow-hidden">
+        <div id="header" class="p-4 border-b flex items-center gap-4 bg-indigo-50">
+            <div id="avatar" class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl shadow-md">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div>
+                <h2 id="name" class="font-bold text-slate-800">Socratic Sidekick</h2>
+                <p id="status" class="text-xs text-indigo-600 font-semibold animate-pulse">Online & Listening</p>
+            </div>
+        </div>
+
+        <div id="chat" class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 max-w-[80%]">
+                Hi! I'm your learning guide. What are we curious about today? (Click the mic to speak!)
+            </div>
+        </div>
+
+        <div id="typing" class="px-6 py-2 text-xs text-slate-400 italic hidden">AI is thinking...</div>
+
+        <div class="p-6 bg-white border-t flex gap-3">
+            <button onclick="startVoice()" id="mic" class="w-12 h-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <input type="text" id="input" class="flex-1 p-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Type or speak...">
+            <button onclick="askAI()" class="bg-indigo-600 text-white px-6 rounded-xl font-bold hover:bg-indigo-800">Send</button>
+        </div>
+    </main>
+
+    <script>
+        const API_KEY = "AIzaSyBSnd-fQQVpSQnEzk3D2Rko3iCB2wjA-X4"; // Your Google Key
+        const chat = document.getElementById('chat');
+        let isPhantomMode = false;
+
+        // 1. VOICE RECOGNITION
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        function startVoice() {
+            recognition.start();
+            document.getElementById('mic').classList.add('bg-red-500', 'text-white', 'animate-pulse');
+        }
+        recognition.onresult = (e) => {
+            document.getElementById('input').value = e.results[0][0].transcript;
+            document.getElementById('mic').classList.remove('bg-red-500', 'text-white', 'animate-pulse');
+            askAI();
+        };
+
+        // 2. GEMINI AI LOGIC
+        async function askAI() {
+            const input = document.getElementById('input');
+            const val = input.value.trim();
+            if(!val) return;
+
+            appendMsg('student', val);
+            input.value = '';
+            document.getElementById('typing').classList.remove('hidden');
+
+            // Agentic Handoff Logic
+            if(val.toLowerCase().includes("don't understand") || val.toLowerCase().includes("stuck")) {
+                switchToTeacher();
+            }
+
+            const prompt = isPhantomMode 
+                ? `You are Mr. Harrison, a real human teacher. Be warm and encouraging. Student is stuck: ${val}`
+                : `You are a Socratic tutor. Guide the student with questions about: ${val}`;
+
+            try {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    method: "POST",
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                const data = await resp.json();
+                const aiText = data.candidates[0].content.parts[0].text;
+                
+                appendMsg('ai', aiText);
+                speak(aiText);
+            } catch (err) {
+                appendMsg('ai', "I'm having trouble connecting to my brain. Please check the API key!");
+            }
+            document.getElementById('typing').classList.add('hidden');
+        }
+
+        function appendMsg(role, text) {
+            const div = document.createElement('div');
+            div.className = role === 'ai' ? "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 max-w-[85%]" : "bg-indigo-600 text-white p-4 rounded-2xl self-end ml-auto max-w-[85%] shadow-md";
+            div.innerText = text;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function switchToTeacher() {
+            isPhantomMode = true;
+            document.getElementById('name').innerText = "Mr. Harrison (Live Teacher)";
+            document.getElementById('header').classList.replace('bg-indigo-50', 'bg-orange-50');
+            document.getElementById('avatar').classList.replace('bg-indigo-600', 'bg-orange-500');
+            document.getElementById('avatar').innerHTML = '<i class="fas fa-user-tie"></i>';
+        }
+
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
